@@ -1,0 +1,55 @@
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:linear-gradient(135deg,#12003a 0%,#0a1d5c 45%,#001a2e 100%);
+  font-family:'Nunito',system-ui,sans-serif;min-height:100vh;height:100%;overflow:hidden}
+html{height:100%}
+#root{height:100vh;height:100dvh}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:rgba(255,255,255,0.04);border-radius:99px}
+::-webkit-scrollbar-thumb{background:linear-gradient(180deg,#f472b6,#a855f7);border-radius:99px}
+input,textarea,select,button{font-family:'Nunito',sans-serif;-webkit-appearance:none}
+input::placeholder,textarea::placeholder{color:rgba(255,255,255,0.3)!important}
+input[type=range]{-webkit-appearance:none;appearance:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;border-radius:50%;background:#a855f7;cursor:pointer;border:2px solid white}
+input[type=range]:focus{outline:none}
+/* Prevent zoom on input focus iOS */
+input[type=text],input[type=password],input[type=number],textarea,select{font-size:16px!important}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes bop{0%,80%,100%{transform:scale(0)}40%{transform:scale(1)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+@keyframes rainbow{0%{background-position:0%}50%{background-position:100%}100%{background-position:0%}}
+@keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-5deg)}75%{transform:rotate(5deg)}}
+@keyframes heartbeat{0%,100%{transform:scale(1)}15%{transform:scale(1.12)}30%{transform:scale(1)}}
+@keyframes sway{0%,100%{transform:rotate(-1.5deg)}50%{transform:rotate(1.5deg)}}
+@keyframes armwave{0%,100%{transform:rotate(0)}30%{transform:rotate(-20deg)}70%{transform:rotate(12deg)}}
+@keyframes bubble-in{from{opacity:0;transform:scale(0.7) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+@keyframes taskBounce{0%,100%{transform:translateY(0)}40%{transform:translateY(-4px)}}
+@keyframes slideInLeft{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+@keyframes slideInUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.cta{border:none;cursor:pointer;font-family:'Nunito',sans-serif;font-weight:800;border-radius:999px;
+  transition:transform .18s,filter .18s;position:relative;overflow:hidden;touch-action:manipulation}
+.cta:hover{transform:translateY(-2px) scale(1.04)!important;filter:brightness(1.1)}
+.cta:active{transform:scale(.96)!important}
+.cta:disabled{opacity:0.4;cursor:not-allowed;transform:none!important}
+.glass{background:rgba(255,255,255,0.06);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1.5px solid rgba(255,255,255,0.11);border-radius:20px}
+.avatar-sway{animation:sway 3.5s ease-in-out infinite;transform-origin:center bottom;display:inline-block}
+/* Sidebar overlay on mobile */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:199;backdrop-filter:blur(4px)}
+.sidebar-overlay.show{display:block}
+/* Mode tabs horizontal scroll */
+.mode-tabs{display:flex;gap:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px;flex-wrap:nowrap}
+.mode-tabs::-webkit-scrollbar{display:none}
+/* Touch targets minimum 44px */
+.touch-btn{min-height:44px;min-width:44px}
+/* Responsive grids */
+@media(max-width:768px){
+  .grade-grid-ef{grid-template-columns:repeat(3,1fr)!important}
+  .grade-grid-em{grid-template-columns:repeat(3,1fr)!important}
+  .avatar-create-layout{flex-direction:column!important}
+  .avatar-preview-col{width:100%!important;padding:24px 16px 14px!important}
+  .avatar-controls-col{max-height:none!important}
+  .two-col-grid{grid-template-columns:1fr!important}
+  .quiz-options{gap:8px}
+  .bottom-safe{padding-bottom:env(safe-area-inset-bottom,16px)}
+  body{overflow:auto}
+}
