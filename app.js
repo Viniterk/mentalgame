@@ -223,81 +223,196 @@ function extractJSON(raw){
   throw new Error("Formato de resposta inválido. Tente novamente.");
 }
 
-async function callAI(messages,grade,lang,apiKey){
-  const r=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-opus-4-5",max_tokens:2000,system:buildSys(grade,lang),messages}),
-  });
-  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`Erro HTTP ${r.status}`);}
-  const d=await r.json();
-  return d.content?.map(b=>b.text||"").join("")||"";
+async function callAI(api,grade,lang){
+
+  const lastMessage =
+    api[api.length - 1]?.content || "";
+
+  const r = await fetch(
+    "http://localhost:3000/chat",
+    {
+      method:"POST",
+
+      headers:{
+        "Content-Type":"application/json"
+      },
+
+      body:JSON.stringify({
+
+        system: buildSys(grade,lang),
+
+        max_tokens:2000,
+
+        messages:[
+          {
+            role:"user",
+            content:lastMessage
+          }
+        ]
+
+      })
+    }
+  );
+
+  if(!r.ok){
+    throw new Error("Erro IA");
+  }
+
+  const data = await r.json();
+
+  return data.reply;
 }
 
 /* Dedicated JSON call — uses JSON-only system prompt and higher token limit */
-async function callJSON(userPrompt,grade,apiKey){
-  const r=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-opus-4-5",max_tokens:3000,system:buildJSONSys(grade),messages:[{role:"user",content:userPrompt}]}),
-  });
-  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`Erro HTTP ${r.status}`);}
-  const d=await r.json();
-  const raw=d.content?.map(b=>b.text||"").join("")||"";
-  return extractJSON(raw);
+async function callJSON(userPrompt,grade){
+
+  const r = await fetch(
+    "http://localhost:3000/chat",
+    {
+      method:"POST",
+
+      headers:{
+        "Content-Type":"application/json"
+      },
+
+      body:JSON.stringify({
+
+        system: buildJSONSys(grade),
+
+        max_tokens:3000,
+
+        messages:[
+          {
+            role:"user",
+            content:userPrompt
+          }
+        ]
+
+      })
+    }
+  );
+
+  if(!r.ok){
+    throw new Error("Erro IA JSON");
+  }
+
+  const data = await r.json();
+
+  return extractJSON(data.reply);
 }
 
 /* Send image + text to Claude Vision */
-async function callAIWithImage(imgBase64,imgMime,textPrompt,grade,lang,apiKey){
-  const r=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-opus-4-5",max_tokens:4000,system:buildSys(grade,lang),
-      messages:[{role:"user",content:[
-        {type:"image",source:{type:"base64",media_type:imgMime,data:imgBase64}},
-        {type:"text",text:textPrompt}
-      ]}]
-    }),
-  });
-  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`Erro HTTP ${r.status}`);}
-  const d=await r.json();
-  return d.content?.map(b=>b.text||"").join("")||"";
+async function callAIWithImage(
+  imgBase64,
+  imgMime,
+  textPrompt,
+  grade,
+  lang
+){
+
+  const r = await fetch(
+    "http://localhost:3000/chat",
+    {
+      method:"POST",
+
+      headers:{
+        "Content-Type":"application/json"
+      },
+
+      body:JSON.stringify({
+
+        system: buildSys(grade,lang),
+
+        max_tokens:4000,
+
+        messages:[
+          {
+            role:"user",
+            content:[
+              {
+                type:"image",
+                source:{
+                  type:"base64",
+                  media_type:imgMime,
+                  data:imgBase64
+                }
+              },
+              {
+                type:"text",
+                text:textPrompt
+              }
+            ]
+          }
+        ]
+
+      })
+    }
+  );
+
+  if(!r.ok){
+    throw new Error("Erro IA imagem");
+  }
+
+  const data = await r.json();
+
+  return data.reply;
 }
 
 /* Analyze image → returns structured JSON with summary + exercises */
-async function analyzeImageJSON(imgBase64,imgMime,grade,apiKey){
-  const r=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify({model:"claude-opus-4-5",max_tokens:4000,
-      system:`You are an English teacher assistant. Analyze the image and return ONLY valid JSON, no extra text, no markdown fences.`,
-      messages:[{role:"user",content:[
-        {type:"image",source:{type:"base64",media_type:imgMime,data:imgBase64}},
-        {type:"text",text:`Analyze the study material in this image. Return ONLY this JSON structure:
-{
-  "topic": "name of the topic/subject identified",
-  "summary_pt": "comprehensive summary of the material in Brazilian Portuguese (3-5 paragraphs)",
-  "summary_en": "comprehensive summary of the material in English (3-5 paragraphs)",
-  "exercises": [
+async function analyzeImageJSON(
+  imgBase64,
+  imgMime,
+  grade
+){
+
+  const r = await fetch(
+    "http://localhost:3000/chat",
     {
-      "num": 1,
-      "question_pt": "pergunta em português",
-      "question_en": "question in English",
-      "answer_pt": "resposta completa em português",
-      "answer_en": "complete answer in English",
-      "explanation_pt": "explicação detalhada em português",
-      "explanation_en": "detailed explanation in English"
+      method:"POST",
+
+      headers:{
+        "Content-Type":"application/json"
+      },
+
+      body:JSON.stringify({
+
+        system:
+`You are an English teacher assistant. Analyze the image and return ONLY valid JSON.`,
+
+        max_tokens:4000,
+
+        messages:[
+          {
+            role:"user",
+            content:[
+              {
+                type:"image",
+                source:{
+                  type:"base64",
+                  media_type:imgMime,
+                  data:imgBase64
+                }
+              },
+              {
+                type:"text",
+                text:
+`Analyze this study material and generate summaries and exercises in JSON.`
+              }
+            ]
+          }
+        ]
+
+      })
     }
-  ]
-}
-Create exactly 5 exercises based on the material. Mix different question types (true/false, open-ended, fill-in, translation). Output raw JSON only.`}
-      ]}]
-    }),
-  });
-  if(!r.ok){const e=await r.json().catch(()=>({}));throw new Error(e.error?.message||`Erro HTTP ${r.status}`);}
-  const d=await r.json();
-  const raw=d.content?.map(b=>b.text||"").join("")||"";
-  return extractJSON(raw);
+  );
+
+  if(!r.ok){
+    throw new Error("Erro IA OCR");
+  }
+
+  const data = await r.json();
+
+  return extractJSON(data.reply);
 }
 function AvatarSVG({av,xp,age=12,size=160}){
   const sk=SKINS.find(s=>s.id===av.skinId)||SKINS[1];
@@ -1147,7 +1262,7 @@ function ChatMode({topic,grade,pInfo,lang,apiKey,isFree}){
     try{
       const api=hist.filter((m,i)=>!(i===0&&m.role==="assistant")).map(m=>({role:m.role,content:m.content}));
       if(!isFree&&topic&&api[0]?.role==="user") api[0]={...api[0],content:`[Tópico: "${topic.label}" – ${gObj?.full}]\n${api[0].content}`};
-      const rep=await callAI(api,grade,lang,apiKey);
+      const rep=await callAI(api,grade,lang);
       setMsgs(p=>[...p,{role:"assistant",content:rep}]);
     }catch(e){setErr("❌ "+e.message);}
     setLoading(false);setTimeout(()=>inputRef.current?.focus(),100);
@@ -2043,7 +2158,6 @@ function App(){
   const [screen,setScreen]=useState("loading");const [history,setHistory]=useState([]);
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
-  const [profile,setProfile]=useState(null);const [apiKey,setApiKey]=useState("");
   const [userType,setUserType]=useState(null);const [pendingGrade,setPendingGrade]=useState(null);const [editing,setEditing]=useState(false);
   const registerUser = async () => {
 
@@ -2135,13 +2249,12 @@ const loginUser = async () => {
   const go=(s)=>{setHistory(h=>[...h,screen]);setScreen(s);};
   const goBack=()=>{setHistory(h=>{if(!h.length)return h;const prev=h[h.length-1];setScreen(prev);return h.slice(0,-1);});};
   useEffect(()=>{
-    const key=ls.str(SK_A);const prof=ls.get(SK_P);
-    setApiKey(key);if(prof?.grade&&prof?.name){setProfile(prof);setUserType(prof.userType||"student");}
     setTimeout(()=>{
   setScreen("auth");
 },500);
   },[]);
-  const onUserType=(t)=>{setUserType(t);if(t==="teacher"){go("teacher");return;}if(t==="guardian"){const p=ls.get(SK_P);if(p?.grade&&p?.name){setProfile(p);setScreen("main");}else go("grade-select");return;}const key=ls.str(SK_A);if(!key){go("apikey");return;}const prof=ls.get(SK_P);if(prof?.grade&&prof?.name){setProfile(prof);setScreen("main");setHistory([]);}else go("grade-select");};
+  const onUserType=(t)=>{setUserType(t);if(t==="teacher"){go("teacher");return;}if(t==="guardian"){const p=ls.get(SK_P);if(p?.grade&&p?.name){setProfile(p);setScreen("main");}else go("grade-select");return;}const key=ls.str(SK_A);go("grade-select");
+return;const prof=ls.get(SK_P);if(prof?.grade&&prof?.name){setProfile(prof);setScreen("main");setHistory([]);}else go("grade-select");};
   const onApiKey=(k)=>{setApiKey(k);const p=ls.get(SK_P);if(p?.grade&&p?.name){setProfile(p);setScreen("main");setHistory([]);}else go("grade-select");};
   const onGrade=(g)=>{setPendingGrade(g.id);go("avatar-create");};
   const onAvSave=(av)=>{const base=profile||{};const np={...base,...av,grade:pendingGrade||base.grade,xp:base.xp||0,userType};setProfile(np);ls.set(SK_P,np);setEditing(false);setScreen("main");setHistory([]);};
@@ -2244,7 +2357,6 @@ Entrar
   if(screen==="loading")return<div style={{height:"100vh",background:G.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:14}}><div style={{fontSize:44,animation:"wiggle 1s ease-in-out infinite"}}>🎮</div><div style={{width:40,height:40,borderRadius:"50%",background:G.rainbow,animation:"spin .9s linear infinite",opacity:.85}}/><p style={{color:"rgba(255,255,255,0.35)",fontSize:13,fontWeight:700,fontFamily:"'Nunito',sans-serif"}}>Carregando MentalGame...</p></div>;
   if(screen==="user-type")return<UserTypeSelect onSelect={onUserType}/>;
   if(screen==="teacher")return<TeacherPortal onBack={goBack}/>;
-  if(screen==="apikey")return<ApiKeyScreen onSave={onApiKey} onBack={goBack}/>;
   if(screen==="grade-select")return<GradeSelect onSelect={onGrade} onBack={goBack}/>;
   if(screen==="avatar-create")return<AvatarCreate grade={pendingGrade||profile?.grade} initial={editing?profile:null} onSave={onAvSave} onBack={goBack}/>;
   if(screen==="main")return<MainApp profile={profile} apiKey={apiKey} onProfileUpdate={onUpdate} onEditAvatar={onEditAv} onChangeGrade={()=>go("grade-select")} onChangeApiKey={()=>go("apikey")} onLogout={()=>{setScreen("user-type");setHistory([]);}} showGuardianNow={userType==="guardian"}/>;
