@@ -362,41 +362,57 @@ async function callAIWithImage(
 async function analyzeImageJSON(
   imgBase64,
   imgMime,
-  grade
-){
+  grade,
+  customInstruction = ""   // ← novo parâmetro opcional
+) {
+
+  // Instrução padrão caso o aluno não escreva nada
+  const fallbackInstruction =
+    "Analyze this study material and generate summaries and exercises.";
+
+  // Monta o prompt combinando instrução + série escolar
+  const userInstruction = customInstruction.trim()
+    ? customInstruction.trim()
+    : fallbackInstruction;
+
+  const fullPrompt =
+    `Student grade: ${grade}\n` +
+    `Student request: "${userInstruction}"\n\n` +
+    `Use the image content, the student's request, and the grade level together ` +
+    `to generate the response. Return ONLY valid JSON.`;
 
   const r = await fetch(
     "http://localhost:3000/chat",
     {
-      method:"POST",
-
-      headers:{
-        "Content-Type":"application/json"
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
       },
-
-      body:JSON.stringify({
+      body: JSON.stringify({
 
         system:
-`You are an English teacher assistant. Analyze the image and return ONLY valid JSON.`,
+          `You are an English teacher assistant. ` +
+          `Always adapt content to the student's grade level. ` +
+          `Follow the student's custom instruction exactly when provided. ` +
+          `Return ONLY valid JSON — no markdown, no explanation outside JSON.`,
 
-        max_tokens:4000,
+        max_tokens: 4000,
 
-        messages:[
+        messages: [
           {
-            role:"user",
-            content:[
+            role: "user",
+            content: [
               {
-                type:"image",
-                source:{
-                  type:"base64",
-                  media_type:imgMime,
-                  data:imgBase64
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: imgMime,
+                  data: imgBase64
                 }
               },
               {
-                type:"text",
-                text:
-`Analyze this study material and generate summaries and exercises in JSON.`
+                type: "text",
+                text: fullPrompt
               }
             ]
           }
@@ -407,8 +423,13 @@ async function analyzeImageJSON(
   );
 
   if(!r.ok){
-    throw new Error("Erro IA OCR");
-  }
+
+  const errText = await r.text();
+
+  console.error("ERRO OCR:", errText);
+
+  throw new Error(errText);
+}
 
   const data = await r.json();
 
@@ -634,43 +655,6 @@ const IsoAgeInput=React.memo(function IsoAgeInput({init,accentC,accentG,onCommit
 /* ══════════════════════════════════════════════════════
    SCREENS
 ══════════════════════════════════════════════════════ */
-
-/* API KEY */
-function ApiKeyScreen({onSave,onBack}){
-  const [k,setK]=useState(ls.str(SK_A));
-  const [show,setShow]=useState(false);
-  return(
-    <div style={{minHeight:"100vh",background:G.bg,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-      {onBack&&<BackBtn onClick={onBack} label="Perfis"/>}
-      {["🎮","⭐","🌈","🧠","✨","🎯"].map((e,i)=>(
-        <div key={i} style={{position:"fixed",fontSize:26,opacity:0.12,animation:`float ${2.8+i*.3}s ease-in-out infinite`,animationDelay:`${i*.4}s`,top:`${10+i*13}%`,left:i%2===0?`${4+i*3}%`:`${88-i*3}%`,userSelect:"none",pointerEvents:"none"}}>{e}</div>
-      ))}
-      <div className="glass" style={{maxWidth:440,width:"100%",padding:"38px 32px",boxShadow:"0 24px 64px rgba(0,0,0,0.5)"}}>
-        <div style={{textAlign:"center",marginBottom:30}}>
-          <div style={{fontSize:50,marginBottom:8,animation:"wiggle 2.5s ease-in-out infinite"}}>🎮</div>
-          <h1 style={{fontSize:34,fontWeight:900,margin:0,background:G.rainbow,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundSize:"300%",animation:"rainbow 4s linear infinite"}}>MentalGame</h1>
-          <p style={{color:"rgba(255,255,255,0.45)",marginTop:8,fontSize:14,fontWeight:700}}>🎓 Aprenda Qualquer Matéria Jogando! 🎮</p>
-        </div>
-        <label style={{color:"rgba(255,255,255,0.6)",fontSize:11,fontWeight:800,display:"block",marginBottom:8,letterSpacing:1.5,textTransform:"uppercase"}}>🔑 Chave de API Anthropic</label>
-        <div style={{position:"relative",marginBottom:12}}>
-          <input type={show?"text":"password"} value={k} onChange={e=>setK(e.target.value)} placeholder="sk-ant-api03-..."
-            style={{width:"100%",background:"rgba(255,255,255,0.07)",border:"2px solid rgba(255,255,255,0.12)",borderRadius:14,padding:"12px 46px 12px 15px",color:"white",fontSize:14,outline:"none",fontWeight:700}}
-            onFocus={e=>e.target.style.borderColor="#a855f7"} onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.12)"}/>
-          <button onClick={()=>setShow(s=>!s)} style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",fontSize:18,color:"rgba(255,255,255,0.4)"}}>
-            {show?"🙈":"👁"}
-          </button>
-        </div>
-        <p style={{color:"rgba(255,255,255,0.3)",fontSize:12,marginBottom:24,lineHeight:1.7,fontWeight:600}}>
-          📌 Obtenha em <a href="https://console.anthropic.com/" target="_blank" style={{color:"#f472b6"}}>console.anthropic.com</a> — salva só no seu navegador.
-        </p>
-        <Btn onClick={()=>{if(k.trim()){ls.setStr(SK_A,k.trim());onSave(k.trim());}}} disabled={!k.trim()}
-          grad={G.rainbow} style={{width:"100%",backgroundSize:"300%",animation:"rainbow 4s linear infinite",fontSize:16,padding:"14px"}}>
-          🚀 Entrar no MentalGame!
-        </Btn>
-      </div>
-    </div>
-  );
-}
 
 /* USER TYPE */
 const USER_TYPES=[
@@ -1000,13 +984,14 @@ function GuardianPortal({profile,onClose}){
 /* ══════════════════════════════════════════════════════
    IMAGE ANALYSIS PANEL  (used inside free chat)
 ══════════════════════════════════════════════════════ */
-function ImageAnalysisPanel({pInfo,grade,apiKey,onClose}){
+function ImageAnalysisPanel({pInfo,grade,onClose}){
   const [img,setImg]=useState(null);       // {base64, mime, url}
   const [loading,setLoading]=useState(false);
   const [result,setResult]=useState(null); // parsed JSON
   const [err,setErr]=useState("");
   const [tab,setTab]=useState("summary"); // summary | exercises
   const [revEx,setRevEx]=useState({});
+  const [customInstruction,setCustomInstruction]=useState("");
   const fileRef=useRef(null);
 
   const onFile=async(e)=>{
@@ -1028,7 +1013,29 @@ function ImageAnalysisPanel({pInfo,grade,apiKey,onClose}){
     if(!img)return;
     setLoading(true);setErr("");setResult(null);setRevEx({});
     try{
-      const data=await analyzeImageJSON(img.base64,img.mime,grade,apiKey);
+      <textarea
+  placeholder='Ex: "faça resumo fácil", "crie quiz", "explique como professor"...'
+
+  value={customInstruction}
+
+  onChange={(e)=>setCustomInstruction(e.target.value)}
+
+  rows={2}
+
+  style={{
+    width:"100%",
+    padding:"12px",
+    borderRadius:"12px",
+    marginTop:"10px",
+    marginBottom:"10px"
+  }}
+/>
+      const result = await analyzeImageJSON(
+  img.base64,
+  img.mime,
+  grade,
+  customInstruction
+);
       setResult(data);setTab("summary");
     }catch(e){setErr("❌ "+e.message);}
     setLoading(false);
@@ -1081,7 +1088,27 @@ function ImageAnalysisPanel({pInfo,grade,apiKey,onClose}){
               </div>
             </div>
             {/* Analyze button */}
+            <textarea
+              placeholder='Ex: "faça um resumo fácil", "crie questões difíceis", "explique como professor"...'
+              value={customInstruction}
+              onChange={(e)=>setCustomInstruction(e.target.value)}
+              rows={3}
+              style={{
+                width:"100%",
+                padding:"14px",
+                borderRadius:"16px",
+                border:"1px solid rgba(255,255,255,0.1)",
+                background:"rgba(255,255,255,0.05)",
+                color:"white",
+                fontSize:"14px",
+                resize:"none",
+                outline:"none",
+                marginBottom:"14px",
+                fontFamily:"Nunito"
+              }}
+            />
             {!result&&!loading&&(
+              
               <Btn onClick={analyze} grad={G.rainbow} style={{backgroundSize:"300%",animation:"rainbow 4s linear infinite",fontSize:15,padding:"14px",boxShadow:"0 8px 28px rgba(168,85,247,0.4)"}}>
                 🔍 Analisar Matéria com IA
               </Btn>
@@ -1230,7 +1257,7 @@ function ImageAnalysisPanel({pInfo,grade,apiKey,onClose}){
 /* ══════════════════════════════════════════════════════
    CHAT MODE
 ══════════════════════════════════════════════════════ */
-function ChatMode({topic,grade,pInfo,lang,apiKey,isFree}){
+function ChatMode({topic,grade,pInfo,lang,isFree}){
   const gObj=GRADES.find(x=>x.id===grade);
   const intro=isFree?"Olá! 🌟 Qualquer dúvida de qualquer matéria — gramática, vocabulário, exercícios... Estou aqui! 😊\n\nDica: clique em **📸 Analisar Imagem** para enviar uma foto da matéria e receber resumo + exercícios!":`Olá! 👋 Vamos aprender **${topic?.label}**? Me faça qualquer pergunta! 🎉`;
   const [msgs,setMsgs]=useState([{role:"assistant",content:intro}]);
@@ -1251,7 +1278,7 @@ function ChatMode({topic,grade,pInfo,lang,apiKey,isFree}){
     if(lastAi<0)return;
     const idx=msgs.length-1-lastAi;
     setTranslating(true);
-    callAI([{role:"user",content:`Retranslate/rewrite the following according to: ${lang==="en"?"Respond ENTIRELY IN ENGLISH":lang==="pt"?"Respond ENTIRELY IN Brazilian Portuguese":"Use Portuguese with English examples"}.\nText:\n${msgs[idx].content}`}],grade,lang,apiKey)
+    callAI([{role:"user",content:`Retranslate/rewrite the following according to: ${lang==="en"?"Respond ENTIRELY IN ENGLISH":lang==="pt"?"Respond ENTIRELY IN Brazilian Portuguese":"Use Portuguese with English examples"}.\nText:\n${msgs[idx].content}`}],grade,lang)
       .then(t=>setMsgs(p=>p.map((m,i)=>i===idx?{...m,content:t}:m))).catch(()=>{}).finally(()=>setTranslating(false));
   },[lang]);
 
@@ -1272,7 +1299,7 @@ function ChatMode({topic,grade,pInfo,lang,apiKey,isFree}){
 
   /* If image panel is open, show it full-screen in place of chat */
   if(isFree&&showImgPanel){
-    return <ImageAnalysisPanel pInfo={pInfo} grade={grade} apiKey={apiKey} onClose={()=>setShowImgPanel(false)}/>;
+    return <ImageAnalysisPanel pInfo={pInfo} grade={grade} onClose={()=>setShowImgPanel(false)}/>;
   }
 
   return(
@@ -1327,7 +1354,7 @@ function ChatMode({topic,grade,pInfo,lang,apiKey,isFree}){
     </div>
   );
 }
-function QuizMode({topic,grade,pInfo,lang,apiKey,onXP}){
+function QuizMode({topic,grade,pInfo,lang,onXP}){
   const gObj=GRADES.find(x=>x.id===grade);
   const [quiz,setQuiz]=useState(null);
   const [cur,setCur]=useState(0);
@@ -1345,7 +1372,7 @@ function QuizMode({topic,grade,pInfo,lang,apiKey,onXP}){
 Return ONLY this JSON structure (no extra text):
 {"questions":[{"question":"...","options":["A) ...","B) ...","C) ...","D) ..."],"correct":0,"explanation":"brief explanation in Portuguese"}]}
 Rules: "correct" is the index (0-3) of the right answer. Make options clearly different. Explanations in Portuguese.`,
-        grade,apiKey
+        grade
       );
       setQuiz(d);
     }catch(e){setErr("❌ "+e.message);}
@@ -1398,12 +1425,12 @@ Rules: "correct" is the index (0-3) of the right answer. Make options clearly di
     </div>
   );
 }
-function SummaryMode({topic,grade,pInfo,lang,apiKey,onXP}){
+function SummaryMode({topic,grade,pInfo,lang,onXP}){
   const gObj=GRADES.find(x=>x.id===grade);
   const [text,setText]=useState("");const [loading,setLoading]=useState(false);const [err,setErr]=useState("");
   const gen=async()=>{
     setLoading(true);setText("");setErr("");
-    try{const raw=await callAI([{role:"user",content:`Resumo completo sobre "${topic?.label}" para ${gObj?.full}. Emojis, **negrito**, exemplos em inglês com tradução. Seções: Introdução, Regras, Exemplos, Dicas, Erros Comuns.`}],grade,lang,apiKey);setText(raw);onXP(5);}
+    try{const raw=await callAI([{role:"user",content:`Resumo completo sobre "${topic?.label}" para ${gObj?.full}. Emojis, **negrito**, exemplos em inglês com tradução. Seções: Introdução, Regras, Exemplos, Dicas, Erros Comuns.`}],grade,lang);setText(raw);onXP(5);}
     catch(e){setErr("❌ "+e.message);}setLoading(false);
   };
   const renderFull=txt=>txt.split("\n").map((line,i)=>{
@@ -1423,7 +1450,7 @@ function SummaryMode({topic,grade,pInfo,lang,apiKey,onXP}){
     </div>
   );
 }
-function ExerciseMode({topic,grade,pInfo,lang,apiKey,onXP}){
+function ExerciseMode({topic,grade,pInfo,lang,onXP}){
   const gObj=GRADES.find(x=>x.id===grade);
   const [exs,setExs]=useState(null);const [ans,setAns]=useState({});const [rev,setRev]=useState({});const [loading,setLoading]=useState(false);const [err,setErr]=useState("");
   const gen=async()=>{
@@ -1434,7 +1461,7 @@ function ExerciseMode({topic,grade,pInfo,lang,apiKey,onXP}){
 Mix types: fill-in-the-blank, rewrite, and translate. Return ONLY this JSON (no extra text):
 {"exercises":[{"type":"fill-in","instruction":"Complete the sentence:","question":"She ___ (go) to school every day.","answer":"goes","explanation":"explanation in Portuguese"},{"type":"rewrite","instruction":"Rewrite using Simple Past:","question":"I eat pizza.","answer":"I ate pizza.","explanation":"..."},{"type":"translate","instruction":"Translate to English:","question":"Eu gosto de música.","answer":"I like music.","explanation":"..."}]}
 Use all three types. Explanations in Portuguese.`,
-        grade,apiKey
+        grade
       );
       setExs(d);
     }catch(e){setErr("❌ "+e.message);}
@@ -1472,7 +1499,7 @@ Use all three types. Explanations in Portuguese.`,
     </div>
   );
 }
-function SpeechMode({grade,pInfo,lang,apiKey}){
+function SpeechMode({grade,pInfo,lang}){
   const gObj=GRADES.find(x=>x.id===grade);
   const [sents,setSents]=useState([]);const [cur,setCur]=useState(0);const [loading,setLoading]=useState(false);
   const [speaking,setSpeaking]=useState(false);const [recording,setRecording]=useState(false);
@@ -1487,7 +1514,7 @@ function SpeechMode({grade,pInfo,lang,apiKey}){
 Return ONLY this JSON (no extra text):
 {"sentences":[{"en":"The dog runs fast.","hint":"dhi dog ronz faest","pt":"O cachorro corre rápido."}]}
 Rules: sentences 4-8 words long, hint uses simplified Portuguese phonetics, pt is Portuguese translation.`,
-        grade,apiKey
+        grade
       );
       setSents(d.sentences||[]);setCur(0);setScores([]);setTranscript("");setScore(null);
     }catch(e){setErr("❌ "+e.message);}
@@ -1581,7 +1608,7 @@ Rules: sentences 4-8 words long, hint uses simplified Portuguese phonetics, pt i
     </div>
   );
 }
-function ChallengeMode({topic,grade,pInfo,lang,apiKey,profile}){
+function ChallengeMode({topic,grade,pInfo,lang,profile}){
   const gObj=GRADES.find(x=>x.id===grade);
   const [tab,setTab]=useState("menu");
   const [questions,setQuestions]=useState([]);
@@ -1598,7 +1625,7 @@ function ChallengeMode({topic,grade,pInfo,lang,apiKey,profile}){
 Return ONLY this JSON:
 {"questions":[{"question":"...","options":["A) ...","B) ...","C) ...","D) ..."],"correct":0}]}
 "correct" is the index (0-3) of the right answer.`,
-        grade,apiKey
+        grade
       );
       const qs=d.questions||[];setQuestions(qs);setCode(enc(qs));setTab("created");
     }catch(e){alert("Erro: "+e.message);}
@@ -1683,7 +1710,7 @@ Return ONLY this JSON:
 /* ══════════════════════════════════════════════════════
    TEACHER PORTAL
 ══════════════════════════════════════════════════════ */
-function MiniGameTeacher({apiKey}){
+function MiniGameTeacher(){
   const [phase,setPhase]=useState("setup");const [topicTxt,setTopicTxt]=useState("");const [grade,setGrade]=useState("ef7");
   const [questions,setQuestions]=useState([]);const [roomCode,setRoomCode]=useState(()=>genCode());const [players,setPlayers]=useState([]);
   const [cur,setCur]=useState(0);const [timer,setTimer]=useState(20);const [loading,setLoading]=useState(false);const [answers,setAnswers]=useState({});const [showAns,setShowAns]=useState(false);
@@ -1702,7 +1729,7 @@ function MiniGameTeacher({apiKey}){
 Return ONLY this JSON:
 {"questions":[{"q":"...","options":["A) ...","B) ...","C) ...","D) ..."],"correct":0}]}
 "correct" is the index (0-3) of the right answer. Make questions fun and engaging.`,
-        grade,apiKey
+        grade
       );
       setQuestions(d.questions||[]);setPhase("lobby");
     }catch(e){alert("Erro: "+e.message);}
@@ -1875,7 +1902,7 @@ function TurmaTab(){
   );
 }
 function TeacherPortal({onBack}){
-  const [tab,setTab]=useState("games");const [apiKey]=useState(()=>ls.str(SK_A));
+  const [tab,setTab]=useState("games");
   const tabs=[{id:"games",icon:"🎮",label:"Mini-jogos"},{id:"perf",icon:"📊",label:"Desempenho"},{id:"turma",icon:"🔗",label:"Turma"}];
   return(
     <div style={{height:"100vh",background:G.bg,display:"flex",flexDirection:"column",overflow:"hidden"}}>
@@ -1890,7 +1917,7 @@ function TeacherPortal({onBack}){
         </div>
       </div>
       <div style={{flex:1,overflow:"hidden"}}>
-        {tab==="games"&&<MiniGameTeacher apiKey={apiKey}/>}
+        {tab==="games"&&<MiniGameTeacher/>}
         {tab==="perf"&&<PerformanceTab/>}
         {tab==="turma"&&<TurmaTab/>}
       </div>
@@ -1928,9 +1955,10 @@ const MODES=[{id:"chat",label:"Tutor",icon:"🤖"},{id:"quiz",label:"Quiz",icon:
 /* Bottom nav modes for mobile (most used) */
 const BOTTOM_MODES=[{id:"chat",icon:"🤖"},{id:"quiz",icon:"🎯"},{id:"speech",icon:"🎙️"},{id:"challenge",icon:"⚔️"},{id:"free",icon:"💬"}];
 
-function MainApp({profile,apiKey,onProfileUpdate,onEditAvatar,onChangeGrade,onChangeApiKey,onLogout,showGuardianNow}){
+function MainApp({profile,onProfileUpdate,onEditAvatar,onChangeGrade,onLogout,showGuardianNow}){
   const isMobile=useIsMobile();
   const [mode,setMode]=useState("chat");const [topic,setTopic]=useState(null);const [mk,setMk]=useState(0);const [lang,setLang]=useState("mix");
+  const [customInstruction,setCustomInstruction]=useState("");
   const [showGuardian,setShowGuardian]=useState(!!showGuardianNow);const [showHelp,setShowHelp]=useState(false);const [showDaily,setShowDaily]=useState(false);
   const [bubble,setBubble]=useState(null);const [waving,setWaving]=useState(false);const [dailyDone,setDailyDone]=useState(()=>getDailyData().done);
   const [sideOpen,setSideOpen]=useState(false); // mobile sidebar toggle
@@ -1994,7 +2022,7 @@ function MainApp({profile,apiKey,onProfileUpdate,onEditAvatar,onChangeGrade,onCh
         </div>
         <div style={{color:"rgba(255,255,255,0.2)",fontSize:9,fontWeight:700}}>{profile.xp||0} XP total</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:4,width:"100%"}}>
-          {[["✏️ Avatar",onEditAvatar,pInfo.g],["🎓 Série",onChangeGrade,G.cyan],["🔑 API",onChangeApiKey,"linear-gradient(135deg,#475569,#334155)"],["👨‍👩‍👧 Resp.",()=>setShowGuardian(true),G.yellow],["🚪 Sair",onLogout,"linear-gradient(135deg,#374151,#1f2937)"]].map(([lb,fn,bg])=>(
+          {[["✏️ Avatar",onEditAvatar,pInfo.g],["🎓 Série",onChangeGrade,G.cyan],["👨‍👩‍👧 Resp.",()=>setShowGuardian(true),G.yellow],["🚪 Sair",onLogout,"linear-gradient(135deg,#374151,#1f2937)"]].map(([lb,fn,bg])=>(
             <button key={lb} onClick={fn} style={{padding:"5px 3px",background:"rgba(255,255,255,0.05)",border:"1.5px solid rgba(255,255,255,0.09)",borderRadius:9,color:"rgba(255,255,255,0.5)",fontSize:9,cursor:"pointer",fontFamily:"'Nunito',sans-serif",fontWeight:700,transition:"all .2s",minHeight:36}}
               onMouseEnter={e=>{e.currentTarget.style.background=bg;e.currentTarget.style.color="white";e.currentTarget.style.borderColor="transparent";}}
               onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.05)";e.currentTarget.style.color="rgba(255,255,255,0.5)";e.currentTarget.style.borderColor="rgba(255,255,255,0.09)";}}>
@@ -2091,15 +2119,15 @@ function MainApp({profile,apiKey,onProfileUpdate,onEditAvatar,onChangeGrade,onCh
 
           {/* Main content */}
           <div style={{flex:1,overflow:"hidden",paddingBottom:isMobile?56:0}}>
-            {mode==="free"?<ChatMode key={`free-${grade}-${mk}`} topic={null} grade={grade} pInfo={pInfo} lang={lang} apiKey={apiKey} isFree/>:
-            mode==="speech"?<SpeechMode key={`sp-${grade}-${mk}`} grade={grade} pInfo={pInfo} lang={lang} apiKey={apiKey}/>:
-            mode==="challenge"?<ChallengeMode key={`ch-${grade}-${topic?.id||""}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang} apiKey={apiKey} profile={profile}/>:
+            {mode==="free"?<ChatMode key={`free-${grade}-${mk}`} topic={null} grade={grade} pInfo={pInfo} lang={lang} isFree/>:
+            mode==="speech"?<SpeechMode key={`sp-${grade}-${mk}`} grade={grade} pInfo={pInfo} lang={lang}/>:
+            mode==="challenge"?<ChallengeMode key={`ch-${grade}-${topic?.id||""}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang} profile={profile}/>:
             mode==="game"?<MiniGameStudent key={`gm-${mk}`} playerName={profile.name} pInfo={pInfo}/>:
             !topic?<EmptyStart icon="👈" title="Escolha um tópico!" desc="Abra o menu lateral e selecione um tópico." pInfo={pInfo}/>:
-            mode==="chat"?<ChatMode key={`c-${grade}-${topic.id}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang} apiKey={apiKey}/>:
-            mode==="quiz"?<QuizMode key={`q-${grade}-${topic.id}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang} apiKey={apiKey} onXP={handleXP}/>:
-            mode==="summary"?<SummaryMode key={`s-${grade}-${topic.id}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang} apiKey={apiKey} onXP={handleXP}/>:
-            <ExerciseMode key={`e-${grade}-${topic.id}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang} apiKey={apiKey} onXP={handleXP}/>}
+            mode==="chat"?<ChatMode key={`c-${grade}-${topic.id}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang}/>:
+            mode==="quiz"?<QuizMode key={`q-${grade}-${topic.id}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang} onXP={handleXP}/>:
+            mode==="summary"?<SummaryMode key={`s-${grade}-${topic.id}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang} onXP={handleXP}/>:
+            <ExerciseMode key={`e-${grade}-${topic.id}-${mk}`} topic={topic} grade={grade} pInfo={pInfo} lang={lang} onXP={handleXP}/>}
           </div>
 
           {/* Mobile bottom navigation */}
@@ -2155,10 +2183,14 @@ class ErrorBoundary extends React.Component{
    ROOT APP
 ══════════════════════════════════════════════════════ */
 function App(){
-  const [screen,setScreen]=useState("loading");const [history,setHistory]=useState([]);
+  const [screen,setScreen]=useState("loading");
+  const [history,setHistory]=useState([]);
+  const [profile,setProfile]=useState(null);
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
-  const [userType,setUserType]=useState(null);const [pendingGrade,setPendingGrade]=useState(null);const [editing,setEditing]=useState(false);
+  const [userType,setUserType]=useState(null);
+  const [pendingGrade,setPendingGrade]=useState(null);
+  const [editing,setEditing]=useState(false);
   const registerUser = async () => {
 
     if(!email.includes("@")){
@@ -2253,9 +2285,8 @@ const loginUser = async () => {
   setScreen("auth");
 },500);
   },[]);
-  const onUserType=(t)=>{setUserType(t);if(t==="teacher"){go("teacher");return;}if(t==="guardian"){const p=ls.get(SK_P);if(p?.grade&&p?.name){setProfile(p);setScreen("main");}else go("grade-select");return;}const key=ls.str(SK_A);go("grade-select");
+  const onUserType=(t)=>{setUserType(t);if(t==="teacher"){go("teacher");return;}if(t==="guardian"){const p=ls.get(SK_P);if(p?.grade&&p?.name){setProfile(p);setScreen("main");}else go("grade-select");return;}go("grade-select");
 return;const prof=ls.get(SK_P);if(prof?.grade&&prof?.name){setProfile(prof);setScreen("main");setHistory([]);}else go("grade-select");};
-  const onApiKey=(k)=>{setApiKey(k);const p=ls.get(SK_P);if(p?.grade&&p?.name){setProfile(p);setScreen("main");setHistory([]);}else go("grade-select");};
   const onGrade=(g)=>{setPendingGrade(g.id);go("avatar-create");};
   const onAvSave=(av)=>{const base=profile||{};const np={...base,...av,grade:pendingGrade||base.grade,xp:base.xp||0,userType};setProfile(np);ls.set(SK_P,np);setEditing(false);setScreen("main");setHistory([]);};
   const onUpdate=(p)=>{setProfile(p);ls.set(SK_P,p);};
@@ -2359,8 +2390,7 @@ Entrar
   if(screen==="teacher")return<TeacherPortal onBack={goBack}/>;
   if(screen==="grade-select")return<GradeSelect onSelect={onGrade} onBack={goBack}/>;
   if(screen==="avatar-create")return<AvatarCreate grade={pendingGrade||profile?.grade} initial={editing?profile:null} onSave={onAvSave} onBack={goBack}/>;
-  if(screen==="main")return<MainApp profile={profile} apiKey={apiKey} onProfileUpdate={onUpdate} onEditAvatar={onEditAv} onChangeGrade={()=>go("grade-select")} onChangeApiKey={()=>go("apikey")} onLogout={()=>{setScreen("user-type");setHistory([]);}} showGuardianNow={userType==="guardian"}/>;
-  return<UserTypeSelect onSelect={onUserType}/>;
+  if(screen==="main")return<MainApp profile={profile} onProfileUpdate={onUpdate} onEditAvatar={onEditAv} onChangeGrade={()=>go("grade-select")} onLogout={()=>{setScreen("user-type");setHistory([]);}} showGuardianNow={userType==="guardian"}/>;  return<UserTypeSelect onSelect={onUserType}/>;
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/></ErrorBoundary>);

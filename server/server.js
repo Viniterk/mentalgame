@@ -28,18 +28,20 @@ app.post("/chat", async (req, res) => {
     console.log("Recebendo mensagem...");
 console.log(messages);
 
+console.log("MODEL TESTE");
+console.log(process.cwd());
 const response =
-      await anthropic.messages.create({
+  await anthropic.messages.create({
 
-        model: "claude-opus-4-20250514",
+    model: "claude-3-haiku-20240307",
 
-        max_tokens,
+    max_tokens,
 
-        system,
+    system,
 
-        messages
+    messages
 
-      });
+  });
 
     res.json({
       reply:
