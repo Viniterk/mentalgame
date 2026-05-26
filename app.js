@@ -229,7 +229,7 @@ async function callAI(api,grade,lang){
     api[api.length - 1]?.content || "";
 
   const r = await fetch(
-    "http://localhost:3000/chat",
+    "https://mentalgame-backend-biah.onrender.com/chat",
     {
       method:"POST",
 
@@ -267,7 +267,7 @@ async function callAI(api,grade,lang){
 async function callJSON(userPrompt,grade){
 
   const r = await fetch(
-    "http://localhost:3000/chat",
+    "https://mentalgame-backend-biah.onrender.com/chat",
     {
       method:"POST",
 
@@ -311,7 +311,7 @@ async function callAIWithImage(
 ){
 
   const r = await fetch(
-    "http://localhost:3000/chat",
+    "https://mentalgame-backend-biah.onrender.com/chat",
     {
       method:"POST",
 
@@ -382,7 +382,7 @@ async function analyzeImageJSON(
     `to generate the response. Return ONLY valid JSON.`;
 
   const r = await fetch(
-    "http://localhost:3000/chat",
+    "https://mentalgame-backend-biah.onrender.com/chat",
     {
       method: "POST",
       headers: {
