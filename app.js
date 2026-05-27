@@ -1,4 +1,4 @@
-const {useState,useRef,useEffect,useCallback,useMemo}=React;
+const {useState,useEffect,useRef,useCallback} = React;
 const DEFAULT_PROFILE = {
   name: "Aluno",
   xp: 0,
@@ -228,6 +228,9 @@ async function callAI(api,grade,lang){
   const lastMessage =
     api[api.length - 1]?.content || "";
 
+  console.log("1 - CALL AI INICIO");
+  console.log("Mensagem:", lastMessage);
+
   const r = await fetch(
     "https://mentalgame-backend-biah.onrender.com/chat",
     {
@@ -254,13 +257,25 @@ async function callAI(api,grade,lang){
     }
   );
 
+  console.log("2 - FETCH TERMINOU");
+  console.log("STATUS:", r.status);
+
   if(!r.ok){
+
+    const txt = await r.text();
+
+    console.log("3 - ERRO BACKEND:");
+    console.log(txt);
+
     throw new Error("Erro IA");
   }
 
   const data = await r.json();
 
-  return data.reply;
+  console.log("4 - JSON RECEBIDO:");
+  console.log(data);
+
+  return data;
 }
 
 /* Dedicated JSON call — uses JSON-only system prompt and higher token limit */
@@ -1426,13 +1441,47 @@ Rules: "correct" is the index (0-3) of the right answer. Make options clearly di
   );
 }
 function SummaryMode({topic,grade,pInfo,lang,onXP}){
-  const gObj=GRADES.find(x=>x.id===grade);
-  const [text,setText]=useState("");const [loading,setLoading]=useState(false);const [err,setErr]=useState("");
-  const gen=async()=>{
-    setLoading(true);setText("");setErr("");
-    try{const raw=await callAI([{role:"user",content:`Resumo completo sobre "${topic?.label}" para ${gObj?.full}. Emojis, **negrito**, exemplos em inglês com tradução. Seções: Introdução, Regras, Exemplos, Dicas, Erros Comuns.`}],grade,lang);setText(raw);onXP(5);}
-    catch(e){setErr("❌ "+e.message);}setLoading(false);
-  };
+
+  const gObj = GRADES.find(x=>x.id===grade);
+  const [customTopic,setCustomTopic] = useState("");
+  const [text,setText] = useState("");
+  const [loading,setLoading] = useState(false);
+  const [err,setErr] = useState("");
+  const currentTopic = customTopic || topic?.label;
+  const printRef = useRef(null);
+  const gen = async()=>{
+  setLoading(true);
+  setText("");
+  setErr("");
+
+  try{
+
+    const rep = await callAI(
+      [
+        {
+          role:"user",
+          content:`Crie um resumo MUITO didático sobre "${
+            currentTopic
+          }" para alunos do ${
+            gObj?.full
+          }.
+Explique regras, exemplos, dicas e erros comuns.`
+        }
+      ],
+      grade,
+      lang
+    );
+
+    setText(rep.reply || rep);
+
+  }catch(e){
+
+    setErr("❌ " + e.message);
+
+  }
+
+  setLoading(false);
+};
   const renderFull=txt=>txt.split("\n").map((line,i)=>{
     if(/^# /.test(line))return<h2 key={i} style={{fontSize:19,fontWeight:900,margin:"16px 0 5px",background:pInfo.g,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{line.slice(2)}</h2>;
     if(/^#{2,3} /.test(line))return<h3 key={i} style={{fontSize:15,fontWeight:800,margin:"13px 0 4px",color:"#67E8F9"}}>{line.replace(/^#{2,3} /,"")}</h3>;
@@ -1440,19 +1489,102 @@ function SummaryMode({topic,grade,pInfo,lang,onXP}){
     if(!line.trim())return<div key={i} style={{height:5}}/>;
     return<p key={i} style={{color:"rgba(255,255,255,0.75)",lineHeight:1.75,margin:"3px 0",fontWeight:600}}><MD text={line}/></p>;
   });
-  if(!text&&!loading&&!err)return<EmptyStart icon="📝" title={`Resumo: ${topic?.label}`} desc="Resumo completo com regras, exemplos e dicas." btnLabel="📝 Gerar Resumo" onClick={gen} pInfo={pInfo}/>;
+ 
+  if(!text&&!loading&&!err)return<EmptyStart icon="📝" title={`Resumo: ${currentTopic}`} desc="Resumo completo com regras, exemplos e dicas." btnLabel="📝 Gerar Resumo" onClick={gen} pInfo={pInfo}/>;
   if(err)return<ErrBox msg={err} onRetry={gen}/>;
   if(loading)return<Spinner label="Criando resumo..."/>;
   return(
-    <div style={{padding:"20px 24px",overflowY:"auto",height:"100%",animation:"fadeUp .25s ease"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{fontWeight:900,fontSize:17,margin:0,background:pInfo.g,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>📝 {topic?.label}</h3><Btn onClick={gen} grad={pInfo.g} sm>🔄 Novo</Btn></div>
-      <div className="glass" style={{padding:"22px 26px"}}>{renderFull(text)}</div>
+  <div style={{
+    padding:"20px 24px",
+    overflowY:"auto",
+    height:"100%",
+    animation:"fadeUp .25s ease"
+  }}>
+
+    <div style={{marginBottom:16}}>
+      <input
+        value={customTopic}
+        onChange={e=>setCustomTopic(e.target.value)}
+        placeholder="Digite qualquer tema..."
+        style={{
+          width:"100%",
+          padding:"12px 16px",
+          borderRadius:14,
+          border:"2px solid rgba(255,255,255,0.1)",
+          background:"rgba(255,255,255,0.06)",
+          color:"white",
+          outline:"none",
+          fontSize:14,
+          fontWeight:600
+        }}
+      />
     </div>
-  );
+
+    <div style={{
+      display:"flex",
+      justifyContent:"space-between",
+      alignItems:"center",
+      marginBottom:16
+    }}>
+
+      <h3 style={{
+        fontWeight:900,
+        fontSize:17,
+        margin:0,
+        background:pInfo.g,
+        WebkitBackgroundClip:"text",
+        WebkitTextFillColor:"transparent"
+      }}>
+        📝 {currentTopic}
+      </h3>
+
+      <div style={{display:"flex",gap:8}}>
+
+        <Btn
+          onClick={()=>{
+            const w = window.open("");
+
+            w.document.write(`
+              <html>
+                <head>
+                  <title>${currentTopic}</title>
+                </head>
+                <body style="font-family:Arial;padding:30px;">
+                  ${text.replace(/\n/g,"<br/>")}
+                </body>
+              </html>
+            `);
+
+            w.document.close();
+            w.print();
+          }}
+          grad={G.green}
+          sm
+        >
+          🖨 Imprimir
+        </Btn>
+
+        <Btn onClick={gen} grad={pInfo.g} sm>
+          🔄 Novo
+        </Btn>
+
+      </div>
+    </div>
+
+    <div className="glass" style={{padding:"22px 26px"}}>
+      {renderFull(text)}
+    </div>
+
+  </div>
+);
 }
 function ExerciseMode({topic,grade,pInfo,lang,onXP}){
   const gObj=GRADES.find(x=>x.id===grade);
-  const [exs,setExs]=useState(null);const [ans,setAns]=useState({});const [rev,setRev]=useState({});const [loading,setLoading]=useState(false);const [err,setErr]=useState("");
+  const [exs,setExs]=useState(null);
+  const [ans,setAns]=useState({});
+  const [rev,setRev]=useState({});
+  const [loading,setLoading]=useState(false);
+  const [err,setErr]=useState("");
   const gen=async()=>{
     setLoading(true);setExs(null);setAns({});setRev({});setErr("");
     try{
@@ -1473,7 +1605,44 @@ Use all three types. Explanations in Portuguese.`,
   if(loading)return<Spinner label="Criando exercícios..."/>;
   return(
     <div style={{padding:"20px 24px",overflowY:"auto",height:"100%",animation:"fadeUp .25s ease"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}><h3 style={{fontWeight:900,fontSize:17,margin:0,background:pInfo.g,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>✏️ {topic?.label}</h3><div style={{display:"flex",gap:8}}><Btn onClick={revAll} grad={G.green} sm>✅ Gabarito</Btn><Btn onClick={gen} grad={pInfo.g} sm>🔄 Novo</Btn></div></div>
+      <div style={{
+  display:"flex",
+  justifyContent:"space-between",
+  alignItems:"center",
+  marginBottom:16
+}}>
+  
+  <h3 style={{
+    fontWeight:900,
+    fontSize:17,
+    margin:0,
+    background:pInfo.g,
+    WebkitBackgroundClip:"text",
+    WebkitTextFillColor:"transparent"
+  }}>
+    ✏️ {topic?.label}
+  </h3>
+
+  <div style={{display:"flex",gap:8}}>
+
+    <Btn
+      onClick={() => window.print()}
+      grad={G.cyan}
+      sm
+    >
+      🖨 Imprimir
+    </Btn>
+
+    <Btn onClick={revAll} grad={G.green} sm>
+      ✅ Gabarito
+    </Btn>
+
+    <Btn onClick={gen} grad={pInfo.g} sm>
+      🔄 Novo
+    </Btn>
+
+  </div>
+</div>
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         {exs?.exercises?.map((ex,i)=>{
           const tg=ex.type==="fill-in"?G.cyan:ex.type==="rewrite"?G.pink:G.green;
@@ -2188,6 +2357,7 @@ function App(){
   const [profile,setProfile]=useState(null);
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
+  const [showPassword,setShowPassword]=useState(false);
   const [userType,setUserType]=useState(null);
   const [pendingGrade,setPendingGrade]=useState(null);
   const [editing,setEditing]=useState(false);
@@ -2333,24 +2503,47 @@ fontSize:16
 </div>
 
 <div style={{display:"flex",flexDirection:"column",gap:6}}>
-<label style={{color:"white",fontWeight:"700"}}>
-Senha
-</label>
 
-<input
-type="password"
-value={password}
-onChange={e=>setPassword(e.target.value)}
-minLength={6}
-style={{
-padding:12,
-width:300,
-borderRadius:12,
-border:"none",
-outline:"none",
-fontSize:16
-}}
-/>
+  <label style={{color:"white",fontWeight:"700"}}>
+    Senha
+  </label>
+
+  <div style={{position:"relative"}}>
+
+    <input
+      type={showPassword ? "text" : "password"}
+      value={password}
+      onChange={e=>setPassword(e.target.value)}
+      minLength={6}
+      style={{
+        padding:12,
+        width:300,
+        borderRadius:12,
+        border:"none",
+        outline:"none",
+        fontSize:16
+      }}
+    />
+
+    <button
+      type="button"
+      onClick={()=>setShowPassword(s=>!s)}
+      style={{
+        position:"absolute",
+        right:12,
+        top:"50%",
+        transform:"translateY(-50%)",
+        background:"transparent",
+        border:"none",
+        cursor:"pointer",
+        fontSize:18
+      }}
+    >
+      {showPassword ? "🙈" : "👁️"}
+    </button>
+
+  </div>
+
 </div>
 
 <button
