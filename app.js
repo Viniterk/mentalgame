@@ -212,13 +212,14 @@ function extractJSON(raw){
   let c=raw.replace(/```json\s*/gi,"").replace(/```\s*/gi,"").trim();
   try{return JSON.parse(c);}catch{}
   // 3. Find first { ... } block
-  const obj=raw.match(/\{[\s\S]*\}/);
+  const obj = raw.match(/\{[\s\S]*\}\s*$/);
   if(obj){try{return JSON.parse(obj[0]);}catch{}}
   // 4. Find first [ ... ] block
   const arr=raw.match(/\[[\s\S]*\]/);
   if(arr){try{return JSON.parse(arr[0]);}catch{}}
   // 5. Try to fix common issues: trailing commas, missing quotes
-  const fixed=raw.replace(/,\s*([}\]])/g,"$1").replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g,'"$2":');
+  const fixed =
+  raw.replace(/,\s*([}\]])/g,"$1");
   try{return JSON.parse(fixed);}catch{}
   throw new Error("Formato de resposta inválido. Tente novamente.");
 }
@@ -275,7 +276,46 @@ async function callAI(api,grade,lang){
   console.log("4 - JSON RECEBIDO:");
   console.log(data);
 
-  return data;
+  return data.reply;
+}
+function startVoice(setValue){
+
+  const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+  if(!SpeechRecognition){
+    alert("Seu navegador não suporta voz.");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+
+  recognition.lang =
+  navigator.language || "pt-BR";
+
+  recognition.interimResults = false;
+
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = (event)=>{
+
+    const text =
+      event.results[0][0].transcript;
+
+    setValue(prev =>
+      prev
+        ? prev + " " + text
+        : text
+    );
+  };
+
+  recognition.onerror = (e)=>{
+    console.log(e);
+    alert("Erro no microfone");
+  };
+
+  recognition.start();
 }
 
 /* Dedicated JSON call — uses JSON-only system prompt and higher token limit */
@@ -390,11 +430,63 @@ async function analyzeImageJSON(
     ? customInstruction.trim()
     : fallbackInstruction;
 
-  const fullPrompt =
-    `Student grade: ${grade}\n` +
-    `Student request: "${userInstruction}"\n\n` +
-    `Use the image content, the student's request, and the grade level together ` +
-    `to generate the response. Return ONLY valid JSON.`;
+const fullPrompt = `
+Student grade: ${grade}
+
+Student request:
+"${userInstruction}"
+
+Analyze the uploaded study material image.
+
+You MUST generate:
+
+1. topic
+2. summaryPT
+3. summaryEN
+4. exercises
+
+IMPORTANT:
+
+- exercises MUST ALWAYS exist
+- exercises MUST ALWAYS be an ARRAY
+- create at least 2 exercises
+- NEVER leave exercises empty
+- NEVER use placeholders
+- NEVER write:
+  "Question"
+  "Answer"
+  "Explanation"
+
+Each exercise MUST contain REAL content.
+
+VALID JSON FORMAT:
+
+{
+  "topic":"Present Perfect",
+
+  "summaryPT":"texto...",
+
+  "summaryEN":"text...",
+
+  "exercises":[
+    {
+      "questionPT":"Complete: I ___ seen this movie.",
+
+      "questionEN":"Complete: I ___ seen this movie.",
+
+      "answerPT":"have",
+
+      "answerEN":"have",
+
+      "explanationPT":"Present Perfect usa have/has.",
+
+      "explanationEN":"Present Perfect uses have/has."
+    }
+  ]
+}
+
+Return ONLY VALID JSON.
+`;
 
   const r = await fetch(
     "https://mentalgame-backend-biah.onrender.com/chat",
@@ -405,13 +497,43 @@ async function analyzeImageJSON(
       },
       body: JSON.stringify({
 
-        system:
-          `You are an English teacher assistant. ` +
-          `Always adapt content to the student's grade level. ` +
-          `Follow the student's custom instruction exactly when provided. ` +
-          `Return ONLY valid JSON — no markdown, no explanation outside JSON.`,
+    system: `
+You are an advanced educational OCR and tutoring AI.
 
-        max_tokens: 4000,
+Your job is to:
+- analyze study material images
+- identify topics from the image
+- explain content
+- generate REAL exercises
+- generate REAL answers
+- generate REAL explanations
+
+NEVER generate placeholders.
+
+NEVER write:
+- "Question"
+- "Answer"
+- "Explanation"
+without actual content.
+
+All exercises must be complete and educational.
+
+If the student asks for exercises about a specific topic from the image,
+identify that topic and focus ONLY on it.
+
+Carefully read ALL text visible in the image before answering.
+
+Do not ignore handwritten or partially visible text.
+
+If multiple topics exist, identify them in order.
+
+Return ONLY VALID JSON.
+No markdown.
+No comments.
+No extra text.
+`,
+
+        max_tokens: 7000,
 
         messages: [
           {
@@ -447,8 +569,15 @@ async function analyzeImageJSON(
 }
 
   const data = await r.json();
+  console.log("JSON BRUTO CLAUDE:");
+  console.log(JSON.stringify(data,null,2));
 
-  return extractJSON(data.reply);
+  const parsed = extractJSON(data.reply);
+
+  console.log("JSON EXTRAIDO:");
+  console.log(JSON.stringify(parsed,null,2));
+
+return parsed;
 }
 function AvatarSVG({av,xp,age=12,size=160}){
   const sk=SKINS.find(s=>s.id===av.skinId)||SKINS[1];
@@ -1028,32 +1157,28 @@ function ImageAnalysisPanel({pInfo,grade,onClose}){
     if(!img)return;
     setLoading(true);setErr("");setResult(null);setRevEx({});
     try{
-      <textarea
-  placeholder='Ex: "faça resumo fácil", "crie quiz", "explique como professor"...'
-
-  value={customInstruction}
-
-  onChange={(e)=>setCustomInstruction(e.target.value)}
-
-  rows={2}
-
-  style={{
-    width:"100%",
-    padding:"12px",
-    borderRadius:"12px",
-    marginTop:"10px",
-    marginBottom:"10px"
-  }}
-/>
-      const result = await analyzeImageJSON(
+     const data = await analyzeImageJSON(
   img.base64,
   img.mime,
   grade,
   customInstruction
 );
-      setResult(data);setTab("summary");
-    }catch(e){setErr("❌ "+e.message);}
-    setLoading(false);
+
+console.log("RESULTADO OCR COMPLETO:");
+console.log(JSON.stringify(data,null,2));
+
+setResult(data);setTab("summary");
+    }catch(e){
+
+  console.error(e);
+
+  setErr("❌ "+e.message);
+
+}finally{
+
+  setLoading(false);
+
+}
   };
 
   const scoreC=(c)=>c==="#34d399"?c:pInfo.c;
@@ -1095,7 +1220,7 @@ function ImageAnalysisPanel({pInfo,grade,onClose}){
             <div className="glass" style={{padding:"14px",position:"relative"}}>
               <img src={img.url} alt="matéria" style={{width:"100%",maxHeight:280,objectFit:"contain",borderRadius:12,display:"block"}}/>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:10}}>
-                <span style={{color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:700}}>📄 {img.name}</span>
+                <span style={{color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:700}}>📄 {img?.name}</span>
                 <button onClick={()=>{setImg(null);setResult(null);setErr("");}}
                   style={{background:"rgba(239,68,68,0.15)",border:"1px solid rgba(239,68,68,0.3)",borderRadius:8,padding:"4px 10px",color:"#FCA5A5",cursor:"pointer",fontSize:12,fontWeight:700,fontFamily:"'Nunito',sans-serif"}}>
                   🗑 Remover
@@ -1150,7 +1275,7 @@ function ImageAnalysisPanel({pInfo,grade,onClose}){
               <span style={{fontSize:22}}>📚</span>
               <div>
                 <div style={{color:"rgba(255,255,255,0.45)",fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>Tópico identificado</div>
-                <div style={{color:"white",fontWeight:900,fontSize:16}}>{result.topic}</div>
+                <div style={{color:"white",fontWeight:900,fontSize:16}}>{result?.topic || "Tópico não identificado"}</div>
               </div>
             </div>
 
@@ -1175,7 +1300,7 @@ function ImageAnalysisPanel({pInfo,grade,onClose}){
                     <span style={{color:"rgba(255,255,255,0.5)",fontSize:11,fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>Resumo em Português</span>
                   </div>
                   <div style={{color:"rgba(255,255,255,0.85)",fontSize:14,lineHeight:1.8,fontWeight:600}}>
-                    {(result.summary_pt||"").split("\n").map((p,i)=>p.trim()&&<p key={i} style={{margin:"0 0 8px"}}>{p}</p>)}
+                    {(result?.summaryPT || "Resumo não encontrado").split("\n").map((p,i)=>p.trim()&&<p key={i} style={{margin:"0 0 8px"}}>{p}</p>)}
                   </div>
                 </div>
                 {/* EN Summary */}
@@ -1185,7 +1310,7 @@ function ImageAnalysisPanel({pInfo,grade,onClose}){
                     <span style={{color:"rgba(103,232,249,0.7)",fontSize:11,fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>Summary in English</span>
                   </div>
                   <div style={{color:"rgba(255,255,255,0.85)",fontSize:14,lineHeight:1.8,fontWeight:600}}>
-                    {(result.summary_en||"").split("\n").map((p,i)=>p.trim()&&<p key={i} style={{margin:"0 0 8px"}}>{p}</p>)}
+                    {(result?.summaryEN || "Summary not found").split("\n").map((p,i)=>p.trim()&&<p key={i} style={{margin:"0 0 8px"}}>{p}</p>)}
                   </div>
                 </div>
                 <Btn onClick={()=>setTab("exercises")} grad={pInfo.g} style={{alignSelf:"flex-end"}}>Ver Exercícios ✏️</Btn>
@@ -1197,11 +1322,12 @@ function ImageAnalysisPanel({pInfo,grade,onClose}){
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span style={{color:"rgba(255,255,255,0.5)",fontSize:12,fontWeight:700}}>{(result.exercises||[]).length} exercícios baseados na imagem</span>
-                  <button onClick={()=>setRevEx(Object.fromEntries((result.exercises||[]).map((_,i)=>[i,true])))}
+                  <button onClick={()=>setRevEx(Object.fromEntries((result?.exercises || []).map((_,i)=>[i,true])))}
                     style={{background:G.green,border:"none",borderRadius:8,padding:"5px 12px",color:"white",cursor:"pointer",fontSize:11,fontWeight:800,fontFamily:"'Nunito',sans-serif"}}>
                     ✅ Ver todos
                   </button>
                 </div>
+                {console.log("EXERCISES:", result.exercises)}
                 {(result.exercises||[]).map((ex,i)=>(
                   <div key={i} className="glass" style={{padding:"16px 18px",borderLeft:`3px solid ${pInfo.c}`}}>
                     {/* Question number */}
@@ -1210,16 +1336,110 @@ function ImageAnalysisPanel({pInfo,grade,onClose}){
                       <span style={{color:"rgba(255,255,255,0.4)",fontSize:10,fontWeight:800,textTransform:"uppercase",letterSpacing:1}}>Exercício {i+1}</span>
                     </div>
                     {/* Questions side by side */}
-                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
-                      <div style={{padding:"10px 13px",background:"rgba(255,255,255,0.05)",borderRadius:11,border:"1px solid rgba(255,255,255,0.08)"}}>
-                        <div style={{fontSize:10,fontWeight:800,color:"rgba(255,255,255,0.35)",textTransform:"uppercase",marginBottom:5}}>🇧🇷 Pergunta</div>
-                        <p style={{color:"white",fontSize:13,fontWeight:700,margin:0,lineHeight:1.5}}>{ex.question_pt}</p>
-                      </div>
-                      <div style={{padding:"10px 13px",background:"rgba(6,182,212,0.06)",borderRadius:11,border:"1px solid rgba(6,182,212,0.15)"}}>
-                        <div style={{fontSize:10,fontWeight:800,color:"rgba(103,232,249,0.5)",textTransform:"uppercase",marginBottom:5}}>🇬🇧 Question</div>
-                        <p style={{color:"white",fontSize:13,fontWeight:700,margin:0,lineHeight:1.5}}>{ex.question_en}</p>
-                      </div>
-                    </div>
+                    <div
+  style={{
+    background:"rgba(255,255,255,0.05)",
+    border:"1px solid rgba(255,255,255,0.08)",
+    borderRadius:"16px",
+    padding:"18px",
+    marginBottom:"16px"
+  }}
+>
+  <div
+    style={{
+      color:"#a78bfa",
+      fontWeight:900,
+      marginBottom:"12px",
+      fontSize:"16px"
+    }}
+  >
+    Exercício {i+1}
+  </div>
+
+  <p
+    style={{
+      color:"white",
+      fontWeight:800,
+      marginBottom:"10px",
+      lineHeight:1.7
+    }}
+  >
+    🇧🇷 {ex.questionPT}
+  </p>
+
+  <p
+    style={{
+      color:"rgba(255,255,255,0.7)",
+      marginBottom:"14px",
+      lineHeight:1.7
+    }}
+  >
+    🇬🇧 {ex.questionEN}
+  </p>
+
+  <button
+    onClick={()=>
+      setRevEx(p=>({
+        ...p,
+        [i]:!p[i]
+      }))
+    }
+
+    style={{
+      padding:"10px 16px",
+      borderRadius:"12px",
+      border:"none",
+      cursor:"pointer",
+      background:pInfo.g,
+      color:"white",
+      fontWeight:800
+    }}
+  >
+    {revEx[i]
+      ? "🙈 Ocultar resposta"
+      : "👁 Ver resposta"}
+  </button>
+
+  {revEx[i] && (
+    <div
+      style={{
+        marginTop:"14px",
+        background:"rgba(52,211,153,0.08)",
+        border:"1px solid rgba(52,211,153,0.25)",
+        borderRadius:"14px",
+        padding:"16px"
+      }}
+    >
+      <p
+        style={{
+          color:"#34d399",
+          fontWeight:900,
+          marginBottom:"10px"
+        }}
+      >
+        🇧🇷 {ex.answerPT}
+      </p>
+
+      <p
+        style={{
+          color:"#86efac",
+          marginBottom:"14px"
+        }}
+      >
+        🇬🇧 {ex.answerEN}
+      </p>
+
+      <p
+        style={{
+          color:"rgba(255,255,255,0.7)",
+          lineHeight:1.7
+        }}
+      >
+        💡 {ex.explanationPT}
+      </p>
+    </div>
+  )}
+</div>
                     {/* Reveal button */}
                     {!revEx[i]?(
                       <button onClick={()=>setRevEx(p=>({...p,[i]:true}))}
@@ -1277,6 +1497,7 @@ function ChatMode({topic,grade,pInfo,lang,isFree}){
   const intro=isFree?"Olá! 🌟 Qualquer dúvida de qualquer matéria — gramática, vocabulário, exercícios... Estou aqui! 😊\n\nDica: clique em **📸 Analisar Imagem** para enviar uma foto da matéria e receber resumo + exercícios!":`Olá! 👋 Vamos aprender **${topic?.label}**? Me faça qualquer pergunta! 🎉`;
   const [msgs,setMsgs]=useState([{role:"assistant",content:intro}]);
   const [input,setInput]=useState("");
+  const [img,setImg]=useState(null);
   const [loading,setLoading]=useState(false);
   const [translating,setTranslating]=useState(false);
   const [err,setErr]=useState("");
@@ -1284,6 +1505,7 @@ function ChatMode({topic,grade,pInfo,lang,isFree}){
   const endRef=useRef(null);
   const inputRef=useRef(null);
   const prevLang=useRef(lang);
+  const recognitionRef = useRef(null);
 
   useEffect(()=>{endRef.current?.scrollIntoView({behavior:"smooth"});},[msgs]);
   useEffect(()=>{
@@ -1297,13 +1519,46 @@ function ChatMode({topic,grade,pInfo,lang,isFree}){
       .then(t=>setMsgs(p=>p.map((m,i)=>i===idx?{...m,content:t}:m))).catch(()=>{}).finally(()=>setTranslating(false));
   },[lang]);
 
+  const startVoice=()=>{
+
+  const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+  if(!SpeechRecognition){
+    alert("Seu navegador não suporta microfone");
+    return;
+  }
+
+  const recog = new SpeechRecognition();
+
+  recognitionRef.current = recog;
+
+  recog.lang = "pt-BR";
+
+  recog.onresult = (e)=>{
+
+    const txt =
+      e.results[0][0].transcript;
+
+    setInput(p=>p+" "+txt);
+  };
+
+  recog.start();
+};
+
   const send=async()=>{
-    if(!input.trim()||loading)return;
+    console.log("=== SEND INICIO ===");
+    console.log("msgs:", msgs);
+    console.log("input:", input);
+    console.log("showImgPanel:", showImgPanel);
+    if(loading) return;
     const hist=[...msgs,{role:"user",content:input}];
     setMsgs(hist);setInput("");setLoading(true);setErr("");
     try{
       const api=hist.filter((m,i)=>!(i===0&&m.role==="assistant")).map(m=>({role:m.role,content:m.content}));
       if(!isFree&&topic&&api[0]?.role==="user") api[0]={...api[0],content:`[Tópico: "${topic.label}" – ${gObj?.full}]\n${api[0].content}`};
+      console.log("API:", api);
       const rep=await callAI(api,grade,lang);
       setMsgs(p=>[...p,{role:"assistant",content:rep}]);
     }catch(e){setErr("❌ "+e.message);}
@@ -1364,7 +1619,21 @@ function ChatMode({topic,grade,pInfo,lang,isFree}){
         <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&send()} placeholder={isFree?"Digite sua dúvida de qualquer matéria ou clique em 📸 Analisar Imagem...":"Digite sua dúvida..."}
           style={{flex:1,background:"rgba(255,255,255,0.07)",border:"2px solid rgba(255,255,255,0.1)",borderRadius:999,padding:"10px 16px",color:"white",fontSize:14,outline:"none",fontWeight:600,transition:"border .2s"}}
           onFocus={e=>e.target.style.borderColor=pInfo.c} onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.1)"}/>
-        <button onClick={send} disabled={loading||!input.trim()} className="cta" style={{width:44,height:44,borderRadius:"50%",background:pInfo.g,border:"none",fontSize:17,color:"white",opacity:loading||!input.trim()?0.3:1,boxShadow:loading||!input.trim()?"none":`0 5px 16px ${pInfo.c}55`}}>➤</button>
+        <button
+  onClick={startVoice}
+  style={{
+    width:44,
+    height:44,
+    borderRadius:"50%",
+    border:"none",
+    cursor:"pointer",
+    fontSize:18,
+    background:"rgba(255,255,255,0.08)",
+    color:"white"
+  }}
+>
+🎤
+</button>
       </div>
     </div>
   );
@@ -1490,22 +1759,16 @@ Explique regras, exemplos, dicas e erros comuns.`
     return<p key={i} style={{color:"rgba(255,255,255,0.75)",lineHeight:1.75,margin:"3px 0",fontWeight:600}}><MD text={line}/></p>;
   });
  
-  if(!text&&!loading&&!err)return<EmptyStart icon="📝" title={`Resumo: ${currentTopic}`} desc="Resumo completo com regras, exemplos e dicas." btnLabel="📝 Gerar Resumo" onClick={gen} pInfo={pInfo}/>;
-  if(err)return<ErrBox msg={err} onRetry={gen}/>;
-  if(loading)return<Spinner label="Criando resumo..."/>;
-  return(
-  <div style={{
-    padding:"20px 24px",
-    overflowY:"auto",
-    height:"100%",
-    animation:"fadeUp .25s ease"
-  }}>
+ if(!text&&!loading&&!err)
+return(
+  <div style={{padding:20}}>
 
     <div style={{marginBottom:16}}>
+
       <input
         value={customTopic}
         onChange={e=>setCustomTopic(e.target.value)}
-        placeholder="Digite qualquer tema..."
+        placeholder={`Tema padrão: ${topic?.label} | ou escreva outro tema`}
         style={{
           width:"100%",
           padding:"12px 16px",
@@ -1518,8 +1781,73 @@ Explique regras, exemplos, dicas e erros comuns.`
           fontWeight:600
         }}
       />
+
     </div>
 
+    <EmptyStart
+      icon="📝"
+      title={`Resumo: ${currentTopic}`}
+      desc="Resumo completo com regras, exemplos e dicas."
+      btnLabel="📝 Gerar Resumo"
+      onClick={gen}
+      pInfo={pInfo}
+    />
+
+  </div>
+);
+  if(err)return<ErrBox msg={err} onRetry={gen}/>;
+  if(loading)return<Spinner label="Criando resumo..."/>;
+  return(
+  <div style={{
+    padding:"20px 24px",
+    overflowY:"auto",
+    height:"100%",
+    animation:"fadeUp .25s ease"
+  }}>
+<div style={{
+  marginBottom:16,
+  display:"flex",
+  gap:10,
+  alignItems:"center"
+}}>
+
+  <input
+    value={customTopic}
+    onChange={e=>setCustomTopic(e.target.value)}
+    placeholder="Digite qualquer tema..."
+    style={{
+      flex:1,
+      padding:"12px 16px",
+      borderRadius:14,
+      border:"2px solid rgba(255,255,255,0.1)",
+      background:"rgba(255,255,255,0.06)",
+      color:"white",
+      outline:"none",
+      fontSize:14,
+      fontWeight:600
+    }}
+  />
+
+  <button
+    onClick={()=>
+      startVoice(setCustomTopic)
+    }
+    style={{
+      width:50,
+      height:50,
+      borderRadius:"50%",
+      border:"none",
+      cursor:"pointer",
+      fontSize:22,
+      background:pInfo.g,
+      color:"white",
+      fontWeight:900
+    }}
+  >
+    🎤
+  </button>
+
+</div>
     <div style={{
       display:"flex",
       justifyContent:"space-between",
@@ -1578,6 +1906,60 @@ Explique regras, exemplos, dicas e erros comuns.`
   </div>
 );
 }
+function renderQuestion(
+  text,
+  value,
+  onChange
+){
+
+  const parts = text.split("___");
+
+  return(
+
+    <div style={{
+      display:"flex",
+      flexWrap:"wrap",
+      alignItems:"center",
+      gap:8,
+      lineHeight:2
+    }}>
+
+      {parts.map((part,index)=>(
+
+        <React.Fragment key={index}>
+
+          <span>{part}</span>
+
+          {index < parts.length - 1 && (
+
+            <input
+              value={value || ""}
+              onChange={e=>
+                onChange(e.target.value)
+              }
+              placeholder="Resposta"
+              style={{
+                minWidth:140,
+                padding:"8px 12px",
+                borderRadius:10,
+                border:"2px solid rgba(255,255,255,0.1)",
+                background:"rgba(255,255,255,0.08)",
+                color:"white",
+                outline:"none",
+                fontWeight:700
+              }}
+            />
+
+          )}
+
+        </React.Fragment>
+
+      ))}
+
+    </div>
+
+  );
+}
 function ExerciseMode({topic,grade,pInfo,lang,onXP}){
   const gObj=GRADES.find(x=>x.id===grade);
   const [exs,setExs]=useState(null);
@@ -1589,12 +1971,51 @@ function ExerciseMode({topic,grade,pInfo,lang,onXP}){
     setLoading(true);setExs(null);setAns({});setRev({});setErr("");
     try{
       const d=await callJSON(
-        `Create 5 English exercises about "${topic?.label}" for ${gObj?.full} students.
-Mix types: fill-in-the-blank, rewrite, and translate. Return ONLY this JSON (no extra text):
-{"exercises":[{"type":"fill-in","instruction":"Complete the sentence:","question":"She ___ (go) to school every day.","answer":"goes","explanation":"explanation in Portuguese"},{"type":"rewrite","instruction":"Rewrite using Simple Past:","question":"I eat pizza.","answer":"I ate pizza.","explanation":"..."},{"type":"translate","instruction":"Translate to English:","question":"Eu gosto de música.","answer":"I like music.","explanation":"..."}]}
-Use all three types. Explanations in Portuguese.`,
-        grade
-      );
+`Create 5 English exercises about "${topic?.label}" for ${gObj?.full} students.
+
+IMPORTANT:
+For ALL fill-in-the-blank exercises, ALWAYS use ___ inside the sentence where the student should type the answer.
+
+Example:
+"She ___ to school every day."
+
+Mix exercise types:
+- fill-in-the-blank
+- rewrite
+- translate
+
+Return ONLY this JSON (no extra text):
+
+{
+  "exercises":[
+    {
+      "type":"fill-in",
+      "instruction":"Complete the sentence:",
+      "question":"She ___ to school every day.",
+      "answer":"goes",
+      "explanation":"explanation in Portuguese"
+    },
+    {
+      "type":"rewrite",
+      "instruction":"Rewrite using Simple Past:",
+      "question":"I eat pizza.",
+      "answer":"I ate pizza.",
+      "explanation":"..."
+    },
+    {
+      "type":"translate",
+      "instruction":"Translate to English:",
+      "question":"Eu gosto de música.",
+      "answer":"I like music.",
+      "explanation":"..."
+    }
+  ]
+}
+
+Use all three types.
+Explanations must be in Portuguese.`,
+grade
+);
       setExs(d);
     }catch(e){setErr("❌ "+e.message);}
     setLoading(false);
@@ -1653,13 +2074,54 @@ Use all three types. Explanations in Portuguese.`,
                 <span style={{fontSize:11,fontWeight:800,letterSpacing:.8,textTransform:"uppercase",background:tg,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>{ex.type==="fill-in"?"Preencha":ex.type==="rewrite"?"Reescreva":"Traduza"}</span>
               </div>
               <p style={{color:"rgba(255,255,255,0.5)",fontSize:12,margin:"0 0 5px",fontWeight:600}}>{ex.instruction}</p>
-              <p style={{color:"white",fontSize:15,margin:"0 0 12px",fontStyle:"italic",lineHeight:1.5,fontWeight:700}}>{ex.question}</p>
-              <div style={{display:"flex",gap:8}}>
-                <input value={ans[i]||""} onChange={e=>setAns(p=>({...p,[i]:e.target.value}))} placeholder="Sua resposta..."
-                  style={{flex:1,background:"rgba(255,255,255,0.07)",border:"2px solid rgba(255,255,255,0.1)",borderRadius:999,padding:"9px 15px",color:"white",fontSize:13,outline:"none",fontWeight:600,transition:"border .2s"}}
-                  onFocus={e=>e.target.style.borderColor=pInfo.c} onBlur={e=>e.target.style.borderColor="rgba(255,255,255,0.1)"}/>
-                <Btn onClick={()=>{setRev(p=>({...p,[i]:!p[i]}));if(!rev[i])onXP(3);}} grad={rev[i]?G.green:pInfo.g} sm style={{borderRadius:999,whiteSpace:"nowrap"}}>{rev[i]?"🙈 Ocultar":"👁 Ver"}</Btn>
-              </div>
+{
+  ex.type === "fill-in"
+
+    ? renderQuestion(
+        ex.question,
+        ans[i],
+        val=>
+          setAns(p=>({
+            ...p,
+            [i]:val
+          }))
+      )
+
+    : (
+
+      <p style={{
+        color:"white",
+        fontSize:15,
+        margin:"0 0 12px",
+        fontStyle:"italic",
+        lineHeight:1.5,
+        fontWeight:700
+      }}>
+        {ex.question}
+      </p>
+
+    )
+}   
+<div style={{marginTop:10}}>
+  <Btn
+    onClick={()=>{
+      setRev(p=>({...p,[i]:!p[i]}));
+
+      if(!rev[i]) onXP(3);
+    }}
+
+    grad={rev[i]?G.green:pInfo.g}
+
+    sm
+
+    style={{
+      borderRadius:999,
+      whiteSpace:"nowrap"
+    }}
+  >
+    {rev[i]?"🙈 Ocultar":"👁 Ver"}
+  </Btn>
+</div>           
               {rev[i]&&<div style={{marginTop:11,padding:"12px 15px",background:"rgba(52,211,153,0.08)",border:"1.5px solid rgba(52,211,153,0.25)",borderRadius:13}}><p style={{fontWeight:800,margin:"0 0 3px",fontSize:13,color:"#34D399"}}>✅ {ex.answer}</p>{ex.explanation&&<p style={{color:"rgba(255,255,255,0.55)",margin:0,fontSize:12,lineHeight:1.6,fontWeight:600}}>💡 <MD text={ex.explanation}/></p>}</div>}
             </div>
           );

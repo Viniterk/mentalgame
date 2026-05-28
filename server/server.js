@@ -33,6 +33,8 @@ console.log(process.cwd());
 console.log("API KEY:", process.env.ANTHROPIC_API_KEY ? "OK" : "MISSING");
 console.log("MESSAGES:", JSON.stringify(messages,null,2));
 console.log("SYSTEM:", system);
+console.log(JSON.stringify(messages,null,2)
+);
 const response =
   await anthropic.messages.create({
 
@@ -45,7 +47,8 @@ const response =
     messages
 
   });
-
+console.log("RESPOSTA CLAUDE:");
+console.log(JSON.stringify(response,null,2));
     res.json({
       reply:
         response.content
