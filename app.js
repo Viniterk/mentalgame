@@ -2814,6 +2814,68 @@ class ErrorBoundary extends React.Component{
    ROOT APP
 ══════════════════════════════════════════════════════ */
 function App(){
+  useEffect(()=>{
+
+  const style = document.createElement("style");
+
+  style.innerHTML = `
+
+  @keyframes floatingIcons {
+
+    0%{
+      transform:translateY(0px) rotate(0deg);
+    }
+
+    50%{
+      transform:translateY(-18px) rotate(8deg);
+    }
+
+    100%{
+      transform:translateY(0px) rotate(0deg);
+    }
+
+  }
+   @keyframes floatX{
+0%{
+transform:translateX(0px) translateY(0px) rotate(0deg);
+}
+25%{
+transform:translateX(12px) translateY(-10px) rotate(6deg);
+}
+50%{
+transform:translateX(-8px) translateY(-20px) rotate(-6deg);
+}
+75%{
+transform:translateX(10px) translateY(-8px) rotate(4deg);
+}
+100%{
+transform:translateX(0px) translateY(0px) rotate(0deg);
+}
+}
+
+@keyframes floatY{
+0%{
+transform:translateY(0px) translateX(0px) scale(1);
+}
+25%{
+transform:translateY(-12px) translateX(8px) scale(1.08);
+}
+50%{
+transform:translateY(-22px) translateX(-10px) scale(1);
+}
+75%{
+transform:translateY(-10px) translateX(6px) scale(1.06);
+}
+100%{
+transform:translateY(0px) translateX(0px) scale(1);
+}
+} 
+
+  `;
+
+  document.head.appendChild(style);
+
+},[]);
   const [screen,setScreen]=useState("loading");
   const [history,setHistory]=useState([]);
   const [profile,setProfile]=useState(null);
@@ -2931,14 +2993,204 @@ flexDirection:"column",
 justifyContent:"center",
 alignItems:"center",
 gap:12,
-background:"#0f172a",
-padding:20
+background:"linear-gradient(135deg,#0f172a,#111827,#1e293b)",
+padding:20,
+overflow:"hidden",
+position:"isolate"
 }}>
 
-<h1 style={{
-color:"white",
+{/* Background floating icons */}
+
+<div style={{
+position:"absolute",
+top:"6%",
+left:"30%",
+fontSize:36,
+opacity:1,
+animation:"floatX 5s ease-in-out infinite"
+}}>
+🎧
+</div>
+
+<div style={{
+position:"absolute",
+top:"12%",
+right:"30%",
+fontSize:34,
+opacity:1,
+animation:"floatY 6s ease-in-out infinite"
+}}>
+🧪
+</div>
+
+<div style={{
+position:"absolute",
+top:"32%",
+left:"18%",
+fontSize:40,
+opacity:1,
+animation:"floatX 7s ease-in-out infinite"
+}}>
+🎯
+</div>
+
+<div style={{
+position:"absolute",
+top:"38%",
+right:"20%",
+fontSize:42,
+opacity:1,
+animation:"floatY 8s ease-in-out infinite"
+}}>
+🚀
+</div>
+
+<div style={{
+position:"absolute",
+bottom:"30%",
+left:"8%",
+fontSize:38,
+opacity:1,
+animation:"floatX 6s ease-in-out infinite"
+}}>
+🧩
+</div>
+
+<div style={{
+position:"absolute",
+bottom:"26%",
+right:"10%",
+fontSize:36,
+opacity:1,
+animation:"floatY 7s ease-in-out infinite"
+}}>
+🎲
+</div>
+
+<div style={{
+position:"absolute",
+top:"70%",
+left:"35%",
+fontSize:34,
+opacity:1,
+animation:"floatX 8s ease-in-out infinite"
+}}>
+📖
+</div>
+
+<div style={{
+position:"absolute",
+top:"75%",
+right:"32%",
+fontSize:40,
+opacity:1,
+animation:"floatY 5s ease-in-out infinite"
+}}>
+🏆
+</div>
+
+<div style={{
+position:"absolute",
+top:"80%",
+left:"47%",
+fontSize:30,
+opacity:1,
+animation:"floatX 4s ease-in-out infinite"
+}}>
+⭐
+</div>
+
+<div style={{
+position:"absolute",
+top:"25%",
+left:"50%",
 fontSize:32,
-fontWeight:"900"
+opacity:1,
+animation:"floatY 9s ease-in-out infinite"
+}}>
+🎨
+</div>
+
+<div style={{
+position:"absolute",
+top:"8%",
+left:"10%",
+fontSize:42,
+opacity:1,
+animation:"float 6s ease-in-out infinite",
+animationDelay:"0s"
+}}>
+📚
+</div>
+
+<div style={{
+position:"absolute",
+top:"20%",
+right:"12%",
+fontSize:38,
+opacity:1,
+animation:"float 7s ease-in-out infinite",
+animationDelay:"1s"
+}}>
+🎮
+</div>
+
+<div style={{
+position:"absolute",
+bottom:"18%",
+left:"15%",
+fontSize:40,
+opacity:1,
+animation:"float 8s ease-in-out infinite",
+animationDelay:"2s"
+}}>
+🧠
+</div>
+
+<div style={{
+position:"absolute",
+bottom:"12%",
+right:"18%",
+fontSize:36,
+opacity:1,
+animation:"float 9s ease-in-out infinite",
+animationDelay:"3s"
+}}>
+✏️
+</div>
+
+<div style={{
+position:"absolute",
+top:"45%",
+left:"5%",
+fontSize:34,
+opacity:1,
+animation:"float 10s ease-in-out infinite",
+animationDelay:"4s"
+}}>
+💡
+</div>
+
+<div style={{
+position:"absolute",
+top:"55%",
+right:"6%",
+fontSize:32,
+opacity:1,
+animation:"float 11s ease-in-out infinite",
+animationDelay:"5s"
+}}>
+🕹️
+</div>
+
+<h1 style={{
+fontSize:46,
+fontWeight:"900",
+background:"linear-gradient(135deg,#8b5cf6,#06b6d4)",
+WebkitBackgroundClip:"text",
+WebkitTextFillColor:"transparent",
+marginBottom:6,
+textShadow:"0 0 30px rgba(139,92,246,0.35)"
 }}>
 MentalGame
 </h1>
@@ -2954,12 +3206,43 @@ type="email"
 value={email}
 onChange={e=>setEmail(e.target.value)}
 style={{
-padding:12,
-width:300,
-borderRadius:12,
-border:"none",
+padding:14,
+width:320,
+borderRadius:16,
+border:"1px solid rgba(255,255,255,0.1)",
 outline:"none",
-fontSize:16
+fontSize:16,
+background:"rgba(255,255,255,0.08)",
+backdropFilter:"blur(8px)",
+color:"white",
+transition:"all .25s ease",
+boxShadow:"0 0 0 rgba(139,92,246,0)"
+}}
+
+onMouseEnter={e=>{
+e.target.style.transform="translateY(-3px) scale(1.02)";
+e.target.style.border="1px solid rgba(139,92,246,0.8)";
+e.target.style.boxShadow="0 0 25px rgba(139,92,246,0.45)";
+e.target.style.background="rgba(255,255,255,0.12)";
+}}
+
+onMouseLeave={e=>{
+e.target.style.transform="translateY(0px) scale(1)";
+e.target.style.border="1px solid rgba(255,255,255,0.1)";
+e.target.style.boxShadow="0 0 0 rgba(139,92,246,0)";
+e.target.style.background="rgba(255,255,255,0.08)";
+}}
+
+onFocus={e=>{
+e.target.style.transform="translateY(-3px) scale(1.02)";
+e.target.style.border="1px solid #8b5cf6";
+e.target.style.boxShadow="0 0 30px rgba(139,92,246,0.55)";
+}}
+
+onBlur={e=>{
+e.target.style.transform="translateY(0px) scale(1)";
+e.target.style.border="1px solid rgba(255,255,255,0.1)";
+e.target.style.boxShadow="0 0 0 rgba(139,92,246,0)";
 }}
 />
 </div>
@@ -2978,13 +3261,44 @@ fontSize:16
       onChange={e=>setPassword(e.target.value)}
       minLength={6}
       style={{
-        padding:12,
-        width:300,
-        borderRadius:12,
-        border:"none",
-        outline:"none",
-        fontSize:16
-      }}
+padding:14,
+width:320,
+borderRadius:16,
+border:"1px solid rgba(255,255,255,0.1)",
+outline:"none",
+fontSize:16,
+background:"rgba(255,255,255,0.08)",
+backdropFilter:"blur(8px)",
+color:"white",
+transition:"all .25s ease",
+boxShadow:"0 0 0 rgba(139,92,246,0)"
+}}
+
+onMouseEnter={e=>{
+e.target.style.transform="translateY(-3px) scale(1.02)";
+e.target.style.border="1px solid rgba(139,92,246,0.8)";
+e.target.style.boxShadow="0 0 25px rgba(139,92,246,0.45)";
+e.target.style.background="rgba(255,255,255,0.12)";
+}}
+
+onMouseLeave={e=>{
+e.target.style.transform="translateY(0px) scale(1)";
+e.target.style.border="1px solid rgba(255,255,255,0.1)";
+e.target.style.boxShadow="0 0 0 rgba(139,92,246,0)";
+e.target.style.background="rgba(255,255,255,0.08)";
+}}
+
+onFocus={e=>{
+e.target.style.transform="translateY(-3px) scale(1.02)";
+e.target.style.border="1px solid #8b5cf6";
+e.target.style.boxShadow="0 0 30px rgba(139,92,246,0.55)";
+}}
+
+onBlur={e=>{
+e.target.style.transform="translateY(0px) scale(1)";
+e.target.style.border="1px solid rgba(255,255,255,0.1)";
+e.target.style.boxShadow="0 0 0 rgba(139,92,246,0)";
+}}
     />
 
     <button
@@ -3010,30 +3324,82 @@ fontSize:16
 
 <button
 onClick={registerUser}
+
 style={{
-padding:12,
-width:300,
-borderRadius:12,
+padding:14,
+width:320,
+borderRadius:16,
 border:"none",
-fontWeight:"bold",
-cursor:"pointer"
+fontWeight:"900",
+cursor:"pointer",
+fontSize:16,
+background:"linear-gradient(135deg,#8b5cf6,#06b6d4)",
+color:"white",
+transition:"all .25s ease",
+boxShadow:"0 10px 25px rgba(139,92,246,0.35)"
+}}
+
+onMouseEnter={e=>{
+e.currentTarget.style.transform="translateY(-4px) scale(1.03)";
+e.currentTarget.style.boxShadow="0 18px 35px rgba(139,92,246,0.55)";
+e.currentTarget.style.filter="brightness(1.08)";
+}}
+
+onMouseLeave={e=>{
+e.currentTarget.style.transform="translateY(0px) scale(1)";
+e.currentTarget.style.boxShadow="0 10px 25px rgba(139,92,246,0.35)";
+e.currentTarget.style.filter="brightness(1)";
+}}
+
+onMouseDown={e=>{
+e.currentTarget.style.transform="scale(0.97)";
+}}
+
+onMouseUp={e=>{
+e.currentTarget.style.transform="translateY(-4px) scale(1.03)";
 }}
 >
-Criar Conta
+✨ Criar Conta
 </button>
 
 <button
 onClick={loginUser}
+
 style={{
-padding:12,
-width:300,
-borderRadius:12,
+padding:14,
+width:320,
+borderRadius:16,
 border:"none",
-fontWeight:"bold",
-cursor:"pointer"
+fontWeight:"900",
+cursor:"pointer",
+fontSize:16,
+background:"linear-gradient(135deg,#22c55e,#06b6d4)",
+color:"white",
+transition:"all .25s ease",
+boxShadow:"0 10px 25px rgba(34,197,94,0.35)"
+}}
+
+onMouseEnter={e=>{
+e.currentTarget.style.transform="translateY(-4px) scale(1.03)";
+e.currentTarget.style.boxShadow="0 18px 35px rgba(34,197,94,0.55)";
+e.currentTarget.style.filter="brightness(1.08)";
+}}
+
+onMouseLeave={e=>{
+e.currentTarget.style.transform="translateY(0px) scale(1)";
+e.currentTarget.style.boxShadow="0 10px 25px rgba(34,197,94,0.35)";
+e.currentTarget.style.filter="brightness(1)";
+}}
+
+onMouseDown={e=>{
+e.currentTarget.style.transform="scale(0.97)";
+}}
+
+onMouseUp={e=>{
+e.currentTarget.style.transform="translateY(-4px) scale(1.03)";
 }}
 >
-Entrar
+🚀 Entrar
 </button>
 
 
